@@ -23,7 +23,9 @@ public class MetricsCalculator {
 	    }
 	    // Create CSV writer
         BufferedWriter writer = new BufferedWriter(new FileWriter("C:\\Users\\Admin\\eclipse-workspace\\Assignment\\src\\Assignment\\src\\Files\\FlowMetrics.csv"));
-        writer.write("File,Try Quantity,Try LOC, Try SLOC, Catch Quantity, Catch LOC, Catch SLOC, Invoked Methods\n");
+        writer.write("File,Try Quantity,Try LOC, Try SLOC, Catch Quantity, Catch LOC, Catch SLOC, Specific Strategy %, Subsumption Strategy %, recoverable exceptions, unrecoverable exceptions\n");
+        
+        //writer.write("File,Specific Strategy %, Subsumption Strategy %, recoverable exceptions, unrecoverable exceptions\n");
 	    // Calculate metrics for each Java file
 	    int totalTryQuantity = 0;
 	    int totalTryLOC=0;
@@ -32,7 +34,8 @@ public class MetricsCalculator {
 	    int totalCatchSize = 0;
 	    int totalCatchLOC = 0;
 	    int totalCatchSLOC = 0;
-	    int totalMethodInvoked = 0;
+	    int totalSpecificCatchP = 0;
+	    int totalSubsumptionCatchP = 0;
 	    
 	   
 	    for (File javaFile : javaFiles) {
@@ -42,41 +45,68 @@ public class MetricsCalculator {
 	        parser.setSource(sourceCode.toCharArray());
 	        parser.setKind(ASTParser.K_COMPILATION_UNIT);
 	        final CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+	        
 
 	        // Calculate metrics for this Java file
-	        int tryQuantity = countTries(cu);
+	        double tryQuantity = countTries(cu);
 	        int tryLOC=countTryLOC(cu);
 	        int trySLOC = countTrySLOC(cu);
 	        int catchSize = countCatch(cu);
 	        int catchLOC = countCatchLOC(cu);
 	        int catchSLOC=countCatchSLOC(cu);
-	        int methodinvoked=countMethodInvoked(cu);
-	        
+	        double specificHandlerP = specificHandlingStrategy(cu);
+	        double subsumptionHandlerP = subsumptionHandlingStrategy(cu);
+	        int recoverableExceptions = recoverableException(cu);
+	        int unrecoverableExceptions = unrecoverableException(cu);
 
 	        // Accumulate metrics for all Java files
-	        totalTryQuantity += tryQuantity;
+	      /*  totalTryQuantity += tryQuantity;
 	        totalTryLOC += tryLOC;
 	        totalTrySLOC += trySLOC;
 	        totalCatchSize +=catchSize;
 	        totalCatchLOC += catchLOC;
-	        totalCatchSLOC += catchSLOC;
-	        totalMethodInvoked +=methodinvoked;
+	        totalCatchSLOC += catchSLOC;*/
 	        
 	        
 	        // Write metrics to CSV
-            writer.write(javaFile.getAbsolutePath() + "," + tryQuantity + "," + tryLOC + "," + trySLOC + ","+ catchSize +"," +catchLOC + "," + catchSLOC + "," +methodinvoked+","+ "\n");
-            
-	        //writer.write(javaFile.getAbsolutePath() + "," + tryQuantity + "," + tryLOC + ","+ catchSize +"," +catchLOC + "," + "\n");
+       
+            if(tryQuantity!=0)
+	        {
+            	if(tryQuantity>= subsumptionHandlerP)
+            	writer.write(javaFile.getAbsolutePath() + "," + (int)tryQuantity + "," + tryLOC + "," + trySLOC + ","+ catchSize +"," +catchLOC + "," + catchSLOC + "," + (specificHandlerP/tryQuantity) *100 + "," + (subsumptionHandlerP/tryQuantity)*100+","+recoverableExceptions+","+unrecoverableExceptions +"," +"\n");
+            	else
+            		writer.write(javaFile.getAbsolutePath() + "," + (int)tryQuantity + "," + tryLOC + "," + trySLOC + ","+ catchSize +"," +catchLOC + "," + catchSLOC + "," + (specificHandlerP/tryQuantity) *100 + "," + 100+","+recoverableExceptions+","+unrecoverableExceptions+ "," + "\n");
+	        
+	        }
+	        else
+	        {
+	        	writer.write(javaFile.getAbsolutePath() + "," + (int)tryQuantity + "," + tryLOC + "," + trySLOC + ","+ catchSize +"," +catchLOC + "," + catchSLOC + "," + 0 + "," + 0+","+recoverableExceptions+","+unrecoverableExceptions+ ","+"\n");
 
+	        }
+            
 	        // Print metrics for this Java file
 	        System.out.println("Metrics for " + javaFile.getAbsolutePath());
-	        System.out.println("Try Quantity: " + tryQuantity);
+	        System.out.println("Try Quantity: " + (int)tryQuantity);
 	        System.out.println("Try LOC: " + tryLOC);
 	        System.out.println("Try SLOC: " + trySLOC);
 	        System.out.println("Catch Size: " + catchSize);
 	        System.out.println("Catch LOC: " + catchLOC); 
-	        System.out.println("Catch SLOC: " + catchSLOC);  
-	        System.out.println("Methods Invoked: "+methodinvoked);
+	        System.out.println("Catch SLOC: " + catchSLOC);
+	        
+	        if(tryQuantity!=0)
+	        {
+	        	System.out.println("Specific Handling Strategy %: " + (specificHandlerP/tryQuantity) *100); 
+		        System.out.println("Subsumption Handling Strategy %: " + (subsumptionHandlerP/tryQuantity)*100); 
+	        
+	        }
+	        else
+	        {
+	        	System.out.println("Specific Handling Strategy %: " + 0); 
+		        System.out.println("Subsumption Handling Strategy %: " +0);
+	        }
+	        
+	        System.out.println("Recoverable Exceptions: "+ recoverableExceptions);	      
+	        System.out.println("UnRecoverable Exceptions: "+ unrecoverableExceptions);
 	        System.out.println();
 	        
 	        //Close CSV writer
@@ -92,6 +122,8 @@ public class MetricsCalculator {
 	    //Close CSV writer
         writer.close();
 	}
+
+	
 
 	private static List<File> getJavaFiles(File folder) {
 	    List<File> javaFiles = new ArrayList<>();
@@ -123,14 +155,7 @@ public class MetricsCalculator {
         int count = 0;
         TryVisitor visitor = new TryVisitor();
         cu.accept(visitor);
-        count = visitor.getTryCount();
-        return count;
-    }
-    private static int countMethodInvoked(CompilationUnit cu) {
-        int count = 0;
-        TryVisitor visitor = new TryVisitor();
-        cu.accept(visitor);
-        count = visitor.getMethodCount();
+        count = visitor.getCount();
         return count;
     }
     
@@ -174,8 +199,41 @@ public class MetricsCalculator {
         count = visitor.getSLocInsideCatch();
         return count;
     }
+    
+    private static int specificHandlingStrategy(CompilationUnit cu) {
+    	
+        int count = 0;
+        SpecificStrategyVisitor visitor = new SpecificStrategyVisitor();
+        cu.accept(visitor);
+        count = visitor.getSpecificStrategyP();
+        return count;
+    }
+    
+    private static int subsumptionHandlingStrategy(CompilationUnit cu) {
+        int count = 0;      
+        SpecificStrategyVisitor visitor = new SpecificStrategyVisitor();
+        cu.accept(visitor);
+        count = visitor.getSubsumptionCatchCount();
+        return count;
+    }
+    
+    private static int recoverableException(CompilationUnit cu) {
+    	
+    	RecoverableExceptionVisitor visitor = new RecoverableExceptionVisitor();
+        cu.accept(visitor);
+        return visitor.getRecoverableCount();
+	}
+
+	private static int unrecoverableException(CompilationUnit cu) {
+		
+		UnRecoverableExceptionVisitor visitor = new UnRecoverableExceptionVisitor();
+	    cu.accept(visitor);
+	    return visitor.getUnrecoverableCount();
+		
+	}
+    
+    
     //Try
-    /*
     private static class TryVisitor extends ASTVisitor {
         private int count = 0;
         public boolean visit(TryStatement node) {
@@ -185,38 +243,7 @@ public class MetricsCalculator {
         public int getCount() {
             return count;
         }
-    }*/
-    private static class TryVisitor extends ASTVisitor {
-        private int tryCount = 0;
-        private int methodCount = 0;
-        
-        public boolean visit(TryStatement node) {
-            tryCount++;
-            
-            // Create a new ASTVisitor to count method invocations inside the try block
-            ASTVisitor methodVisitor = new ASTVisitor() {
-                public boolean visit(MethodInvocation node) {
-                    methodCount++;
-                    return super.visit(node);
-                }
-            };
-            
-            // Traverse the try block using the methodVisitor
-            Block tryBlock = node.getBody();
-            tryBlock.accept(methodVisitor);
-            
-            return super.visit(node);
-        }
-        
-        public int getTryCount() {
-            return tryCount;
-        }
-        
-        public int getMethodCount() {
-            return methodCount;
-        }
     }
-
     //Try LOC
     private static class TryLOCVisitor extends ASTVisitor {
     	
@@ -329,6 +356,8 @@ public class MetricsCalculator {
                 return super.visit(node);
             }
             String code = rootString.substring(startLine, endLine);
+            //String code = node.getRoot().toString().substring(startLine, endLine);
+            //int lines = code.split("\n").length;
             int nonEmptyLines = 0;
             for (String line : code.split("\n")) {
                 if (!line.trim().isEmpty()) {
@@ -340,6 +369,136 @@ public class MetricsCalculator {
         }
         public int getSLocInsideCatch() {
             return count;
+        }
+    }
+    
+    // Strategy counter   
+    private static class SpecificStrategyVisitor extends ASTVisitor {
+    	
+         int specificCatchCount = 0;
+         int subsumptionCatchCount = 0;
+
+        public boolean visit(CatchClause node) {
+        	
+            ITypeBinding catchType = node.getException().getType().resolveBinding();
+            ITypeBinding thrownType = null;
+
+            // Get the type of the exception thrown in the try block
+            if (node.getParent() instanceof TryStatement) {
+                TryStatement tryStatement = (TryStatement) node.getParent();
+                for (Object obj : tryStatement.getBody().statements()) {
+                    if (obj instanceof ThrowStatement) {
+                        ThrowStatement throwStatement = (ThrowStatement) obj;
+                        thrownType = throwStatement.getExpression().resolveTypeBinding();
+                        break; // stop searching after the first throw statement is found
+                    }
+                }
+            }
+
+            // Check if the catch parameter type is the same as the thrown exception type
+            if (catchType != null && thrownType != null && catchType.isEqualTo(thrownType)) {
+            	System.out.println("ct: "+catchType);
+            	System.out.println("tt: "+thrownType);
+                specificCatchCount++;
+            } else {
+                subsumptionCatchCount++;
+            }
+
+            return super.visit(node);
+        }
+
+        public int getSpecificStrategyP() {
+            return specificCatchCount;
+        }
+
+        public int getSubsumptionCatchCount() {
+            return subsumptionCatchCount;
+        }
+    }
+
+    // Recoverable and Unrecoverable exceptions
+    
+    private static class RecoverableExceptionVisitor extends ASTVisitor {
+        private int recoverableCount = 0;
+        private int unrecoverableCount = 0;
+        
+        public boolean visit(TryStatement node) {
+            List<CatchClause> catchClauses = node.catchClauses();
+            boolean hasRecoverableException = false;
+            for (CatchClause catchClause : catchClauses) {
+                Type catchType = catchClause.getException().getType();
+                if (catchType != null && catchType.resolveBinding() != null && catchType.resolveBinding().isSubTypeCompatible(
+                        node.getAST().resolveWellKnownType("java.lang.Exception"))) {
+                    recoverableCount++;
+                    hasRecoverableException = true;
+                } else {
+                    unrecoverableCount++;
+                }
+            }
+            // If there is no catch block that catches Exception, increment the unrecoverable count
+            if (!hasRecoverableException) {
+                unrecoverableCount++;
+                //recoverableCount = 0;
+            }
+            return super.visit(node);
+        }
+        
+        public int getRecoverableCount() {
+            return recoverableCount;
+        }
+        
+        public int getUnrecoverableCount() {
+            return unrecoverableCount;
+        }
+    }
+
+    private static class UnRecoverableExceptionVisitor extends ASTVisitor {
+        private int recoverableCount = 0;
+        private int unrecoverableCount = 0;
+        
+        public boolean visit(TryStatement node) {
+            List<CatchClause> catchClauses = node.catchClauses();
+            boolean hasRecoverableException = false;
+            for (CatchClause catchClause : catchClauses) {
+                Type catchType = catchClause.getException().getType();
+                if (catchType != null) {
+                    ITypeBinding binding = catchType.resolveBinding();
+                    if (binding != null && binding.isSubTypeCompatible(node.getAST().resolveWellKnownType("java.lang.Exception"))) {
+                        recoverableCount++;
+                        hasRecoverableException = true;
+                    } else {
+                        unrecoverableCount++;
+                    }
+                } else {
+                    // If the catch type is null, check if it has a binding
+                    IVariableBinding variableBinding = catchClause.getException().resolveBinding();
+                    if (variableBinding != null) {
+                        ITypeBinding binding = variableBinding.getType();
+                        if (binding != null && binding.isSubTypeCompatible(node.getAST().resolveWellKnownType("java.lang.Exception"))) {
+                            recoverableCount++;
+                            hasRecoverableException = true;
+                        } else {
+                            unrecoverableCount++;
+                        }
+                    } else {
+                        // If the catch type and its binding are null, count it as unrecoverable
+                        unrecoverableCount++;
+                    }
+                }
+            }
+            // If there is no catch block that catches Exception, increment the unrecoverable count
+            if (!hasRecoverableException) {
+                unrecoverableCount++;
+            }
+            return super.visit(node);
+        }
+
+        public int getRecoverableCount() {
+            return recoverableCount;
+        }
+        
+        public int getUnrecoverableCount() {
+            return unrecoverableCount;
         }
     }
 }
